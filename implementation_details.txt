@@ -1,0 +1,55 @@
+all_relevant_sensitive_info_types = [
+    # --- PII (Personally Identifiable Information) ---
+    {"name": "PERSON_NAME"},               # Full names of individuals
+    {"name": "EMAIL_ADDRESS"},             # Standard email addresses
+    {"name": "PHONE_NUMBER"},              # Phone numbers (various formats)
+    {"name": "STREET_ADDRESS"},            # Physical street addresses
+    {"name": "IP_ADDRESS"},                # Internet Protocol addresses
+    {"name": "US_SOCIAL_SECURITY_NUMBER"}, # U.S. Social Security Numbers
+    {"name": "PASSPORT"},                  # Generic passport numbers
+    {"name": "US_DRIVERS_LICENSE_NUMBER"}, # U.S. Driver's License Numbers
+    {"name": "DATE_OF_BIRTH"},             # Dates of birth
+    {"name": "AGE"},                       # Age (numerical values)
+    {"name": "GENDER"},                    # Gender information
+    {"name": "ETHNIC_GROUP"},              # Ethnic group information
+    {"name": "LOCATION"},                  # General location mentions
+    {"name": "DOMAIN_NAME"},               # Domain names that might appear in PII
+    {"name": "URL"},                       # URLs that might contain PII
+
+    # --- PCI (Payment Card Industry Data) ---
+    {"name": "CREDIT_CARD_NUMBER"},        # Credit and debit card numbers (e.g., Visa, Mastercard)
+    {"name": "BANK_ACCOUNT_NUMBER"},       # Generic bank account numbers
+    {"name": "US_BANK_ACCOUNT_NUMBER"},    # U.S. specific bank account numbers
+    {"name": "IBAN_CODE"},                 # International Bank Account Numbers
+    {"name": "SWIFT_CODE"},                # SWIFT/BIC codes for international transfers
+    {"name": "FINANCIAL_ACCOUNT_NUMBER"},  # A broader category for various financial accounts
+
+    # --- PHI (Protected Health Information) ---
+    {"name": "MEDICAL_RECORD_NUMBER"},     # Patient medical record numbers
+    {"name": "US_HEALTHCARE_ID"},          # U.S. Healthcare ID (e.g., NPI, Medicare Beneficiary Identifier)
+    # Note: For very specific clinical data (like "diagnosis", "medication_count"),
+    # DLP might require custom InfoTypes with regex patterns if they don't
+    # fit a standard built-in category. However, some basic health-related PII
+    # like DATE_OF_BIRTH, GENDER, AGE, PERSON_NAME etc. are covered under PII.
+    # The following are generic categories that might capture some PHI context:
+    {"name": "HEALTHCARE_PROVIDER_ID"},    # Identifiers for healthcare providers
+    {"name": "PHONE_NUMBER"},              # Phone numbers can be PHI if linked to health data
+    {"name": "EMAIL_ADDRESS"},             # Email addresses can be PHI
+    {"name": "DATE"},                      # Generic dates related to health events (e.g., hospital visit dates)
+    {"name": "DISEASE"},                   # Names of diseases (DLP has limited detection for this, often needs custom)
+    {"name": "DRUG_CODE"},                 # Drug codes (often needs custom)
+    {"name": "ICD10_CODE"},                # ICD-10 diagnostic codes (often needs custom)
+]
+
+
+
+
+redacted for all infotypes
+
+
+
+$env:GOOGLE_CLOUD_PROJECT = "your-project-id"
+
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=your-api-key
+in .env in multi_tool_agent
