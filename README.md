@@ -22,6 +22,10 @@ project/
 
 ## 🛠️ Setup Instructions
 
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=your-api-key
+in .env in multi_tool_agent
+
 ### 1. Install Google ADK
 
 First, install the Google Agent Development Kit:
@@ -34,7 +38,9 @@ pip install google-adk
 
 1. Go to [Google AI Studio](https://aistudio.google.com/)
 2. Create a project and get your API key
-3. Open `multi_tool_agent/.env` and replace `PASTE_YOUR_ACTUAL_API_KEY_HERE` with your actual API key
+   GOOGLE_GENAI_USE_VERTEXAI=FALSE
+   GOOGLE_API_KEY=your-api-key
+   in .env in multi_tool_agent
 
 ### 3. Install Dependencies
 
@@ -43,6 +49,9 @@ Make sure you have the required Python packages:
 ```bash
 pip install pandas google-cloud-dlp
 ```
+
+$env:GOOGLE_CLOUD_PROJECT = "your-project-id"
+In the terminal at the start. If terminal is refreshed, run again.
 
 ## 🎯 Agent Capabilities
 
