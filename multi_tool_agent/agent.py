@@ -39,7 +39,7 @@ def anonymize_csv_data(input_file: str, output_file: Optional[str] = None) -> di
 
         # Load and process the data
         df = pd.read_csv(input_file)
-        anonymized_df, transformations_applied = anonymizer.anonymize_dataframe(
+        anonymized_df, sensitive_columns_detected, sensitive_column_names = anonymizer.anonymize_dataframe(
             df)
 
         # Save anonymized data
@@ -51,8 +51,10 @@ def anonymize_csv_data(input_file: str, output_file: Optional[str] = None) -> di
             'output_file': output_file,
             'total_records': len(df),
             'total_fields': len(df.columns),
+            'total_columns_names': df.columns.tolist(),
             # This is the count of redacted items
-            'sensitive_fields_detected': transformations_applied,
+            'sensitive_fields_detected': sensitive_columns_detected,
+            'sensitive_fields_names': sensitive_column_names,
             'transformation_log': anonymizer.transformation_log.copy()
         }
 
@@ -69,12 +71,11 @@ def anonymize_csv_data(input_file: str, output_file: Optional[str] = None) -> di
         }
 
 
-def generate_anonymization_report(input_file: str, output_file: Optional[str] = None, report_file: Optional[str] = None) -> dict:
+def generate_anonymization_report(stats: Dict[str, Any], report_file: Optional[str] = None) -> dict:
     """Generates a detailed anonymization report for processed data.
 
     Args:
-        input_file (str): Path to the original input CSV file.
-        output_file (str, optional): Path to the anonymized output file.
+        stats (dict): Statistics generated from the anonymization process.
         report_file (str, optional): Path for the report file. Defaults to 'anonymization_report.txt'.
 
     Returns:
@@ -82,40 +83,13 @@ def generate_anonymization_report(input_file: str, output_file: Optional[str] = 
     """
     try:
         # Set default paths
-        if output_file is None:
-            base_name = os.path.splitext(input_file)[0]
-            output_file = f"anonymized_{base_name}.csv"
-
         if report_file is None:
             report_file = "anonymization_report.txt"
 
-        # Initialize anonymizer
+        # Initialize anonymizer (only to use its report generation method)
         anonymizer = Anonymizer()
 
-        # Check if files exist
-        if not os.path.exists(input_file):
-            return {
-                "status": "error",
-                "error_message": f"Input file '{input_file}' not found."
-            }
-
-        # To generate a report, we need to re-run the anonymization to get the stats and log
-        # This could be optimized if anonymize_csv_data returned more detailed stats from DLP
-        # For now, we'll re-process to get the full transformation log
-        df = pd.read_csv(input_file)
-        anonymized_df, transformations_applied = anonymizer.anonymize_dataframe(
-            df)  # Re-run to get updated log
-
-        stats = {
-            'input_file': input_file,
-            'output_file': output_file,
-            'total_records': len(df),
-            'total_fields': len(df.columns),
-            'sensitive_fields_detected': transformations_applied,
-            'transformation_log': anonymizer.transformation_log.copy()
-        }
-
-        # Generate report
+        # Generate report using the provided stats
         report_content = anonymizer.generate_anonymization_report(stats)
 
         # Save report
@@ -153,7 +127,7 @@ def process_sample_data() -> dict:
 
         # Then generate the report
         report_result = generate_anonymization_report(
-            input_file, output_file, report_file)
+            anonymize_result["statistics"], report_file)
         if report_result["status"] != "success":
             return report_result
 

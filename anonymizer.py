@@ -21,45 +21,6 @@ class Anonymizer:
     Google Cloud Data Loss Prevention (DLP) API.
     """
 
-    # Define the InfoTypes to be detected by Google DLP
-    DLP_INFO_TYPES = [
-        # --- PII (Personally Identifiable Information) ---
-        {"name": "PERSON_NAME"},               # Full names of individuals
-        {"name": "EMAIL_ADDRESS"},             # Standard email addresses
-        # Phone numbers (various formats)
-        {"name": "PHONE_NUMBER"},
-        {"name": "STREET_ADDRESS"},            # Physical street addresses
-        {"name": "IP_ADDRESS"},                # Internet Protocol addresses
-        {"name": "US_SOCIAL_SECURITY_NUMBER"},  # U.S. Social Security Numbers
-        {"name": "PASSPORT"},                  # Generic passport numbers
-        {"name": "US_DRIVERS_LICENSE_NUMBER"},  # U.S. Driver's License Numbers
-        {"name": "DATE_OF_BIRTH"},             # Dates of birth
-        {"name": "AGE"},                       # Age (numerical values)
-        {"name": "GENDER"},                    # Gender information
-        {"name": "LOCATION"},                  # General location mentions
-        # Domain names that might appear in PII
-        {"name": "DOMAIN_NAME"},
-        {"name": "URL"},                       # URLs that might contain PII
-
-        # --- India Specific PII ---
-        {"name": "INDIA_AADHAAR_INDIVIDUAL"},
-        {"name": "INDIA_PAN_INDIVIDUAL"},
-        {"name": "INDIA_GST_INDIVIDUAL"},
-
-        # --- PCI (Payment Card Industry Data) ---
-        # Credit and debit card numbers (e.g., Visa, Mastercard)
-        {"name": "CREDIT_CARD_NUMBER"},
-        # U.S. specific bank account numbers
-        # International Bank Account Numbers
-        {"name": "IBAN_CODE"},
-        # SWIFT/BIC codes for international transfers
-        {"name": "SWIFT_CODE"},
-
-        # --- PHI (Protected Health Information) ---
-        # Generic dates related to health events (e.g., hospital visit dates)
-        {"name": "DATE"},
-    ]
-
     def __init__(self):
         """
         Initialize the Anonymizer with Google DLP client.
@@ -176,66 +137,89 @@ class Anonymizer:
         if not filtered_texts:
             return texts_to_deidentify  # Return original list if all are empty/NaN
 
-        # Create a mapping from original index to filtered index
-        original_to_filtered_map = {idx: f_idx for f_idx, (idx, t) in enumerate(zip(range(len(
-            texts_to_deidentify)), texts_to_deidentify)) if pd.notna(t) and t is not None and t != ''}
-
-        # Prepare items for DLP request
-        items = [{"value": text} for text in filtered_texts]
         parent = f"projects/{self.project_id}"
 
-        # Initialize with original values
-        redacted_results = list(texts_to_deidentify)
-
         try:
-            inspect_config = {
-                "info_types": self.DLP_INFO_TYPES,
-                # Detect anything with at least possible likelihood
-                "min_likelihood": dlp_v2.Likelihood.POSSIBLE,
-                "include_quote": True
-            }
-
-            deidentify_config = {
-                "info_type_transformations": {
-                    "transformations": [
-                        {
-                            "primitive_transformation": {
-                                "character_mask_config": {
-                                    "masking_character": "*",
-                                    "number_to_mask": 0,  # Mask all characters
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-            # The deidentify_content method processes multiple items in a single request
-            response = self.dlp_client.deidentify_content(
-                request={
-                    "parent": parent,
-                    "item": {"table": {"headers": [{"name": "value"}], "rows": [{"values": [{"string_value": item["value"]}]} for item in items]}},
-                    "inspect_config": inspect_config,
-                    "deidentify_config": deidentify_config
-                }
+            # Define inspect configuration using dlp_v2 objects
+            inspect_config = dlp_v2.InspectConfig(
+                min_likelihood=dlp_v2.Likelihood.POSSIBLE,
+                include_quote=True,
             )
 
-            # Extract redacted values from the response
-            # The response will contain the transformed values in the same order as the input items
+            # Define the de-identify configuration using dlp_v2 objects
+            deidentify_config = dlp_v2.DeidentifyConfig(
+                info_type_transformations=dlp_v2.InfoTypeTransformations(
+                    transformations=[
+                        dlp_v2.InfoTypeTransformations.InfoTypeTransformation(
+                            primitive_transformation=dlp_v2.PrimitiveTransformation(
+                                character_mask_config=dlp_v2.CharacterMaskConfig(
+                                    masking_character="*",
+                                    number_to_mask=0,
+                                )
+                            ),
+                            # No specific info_types here, means all detected info types will be masked
+                        )
+                    ]
+                )
+            )
+
+            # Construct a table item for structured data processing using dlp_v2 objects
+            table_headers = [dlp_v2.FieldId(name="value")]
+            table_rows = []
+            for text in filtered_texts:
+                table_rows.append(dlp_v2.Table.Row(
+                    values=[dlp_v2.Value(string_value=text)]))
+
+            table_object = dlp_v2.Table(headers=table_headers, rows=table_rows)
+            content_item = dlp_v2.ContentItem(table=table_object)
+
+            # Construct the DeidentifyContentRequest object explicitly
+            request = dlp_v2.DeidentifyContentRequest(
+                parent=parent,
+                inspect_config=inspect_config,
+                deidentify_config=deidentify_config,
+                item=content_item,
+            )
+
+            # Call the DLP API
+            response = self.dlp_client.deidentify_content(request=request)
+
+            # Process the DLP response
+            transformed_texts = []
             if response.item and response.item.table and response.item.table.rows:
-                for f_idx, row in enumerate(response.item.table.rows):
+                for row in response.item.table.rows:
                     if row.values and row.values[0].string_value is not None:
-                        # Find the original index for this filtered item
-                        original_idx = next(
-                            idx for idx, f_idx_val in original_to_filtered_map.items() if f_idx_val == f_idx)
-                        redacted_results[original_idx] = row.values[0].string_value
+                        transformed_texts.append(row.values[0].string_value)
 
+            # Log transformations (this part needs careful adjustment as transformation_summaries are for findings, not raw rows)
+            if response.overview.transformation_summaries:
+                for t_summary in response.overview.transformation_summaries:
+                    info_type = (
+                        t_summary.info_type.name
+                        if t_summary.info_type
+                        else "UNKNOWN_INFOTYPE"
+                    )
+                    self.transformation_log.append({
+                        "info_type": info_type,
+                        "transformation": "Character Masking",
+                        "status": t_summary.results[0].count if t_summary.results else 0,
+                        "transformed_bytes": t_summary.transformed_bytes,
+                    })
+
+            # If DLP processes successfully but returns no transformations (e.g., no sensitive data),
+            # ensure we return the original filtered texts to maintain array length.
+            if not transformed_texts and filtered_texts:
+                return filtered_texts
+
+            # Ensure the number of transformed texts matches the number of filtered texts
+            # If DLP doesn't return a transformed value for every input, we fill with original
+            if len(transformed_texts) < len(filtered_texts):
+                for i in range(len(transformed_texts), len(filtered_texts)):
+                    transformed_texts.append(filtered_texts[i])
+
+            return transformed_texts
         except Exception as e:
-            print(
-                f"⚠️  Error applying DLP redaction to batch: {e}. Returning original values.")
-            # If an error occurs, return the original list to avoid data loss
-            return texts_to_deidentify
-
-        return redacted_results
+            raise RuntimeError(f"DLP redaction failed: {e}")
 
     def generate_anonymization_report(self, stats: Dict[str, Any]) -> str:
         """
@@ -261,28 +245,23 @@ class Anonymizer:
             f"Sensitive Fields Redacted (by DLP): {stats.get('sensitive_fields_detected', 'N/A')}")
 
         report.append("\n--- Sensitive Fields Detected ---")
-        if stats.get('sensitive_fields_names'):
-            for column in stats['sensitive_fields_names']:
-                report.append(f"- {column}")
+        if stats['sensitive_fields_names']:
+            for field in stats['sensitive_fields_names']:
+                report.append(f"- {field}")
         else:
-            report.append(
-                "No specific sensitive fields detected (all handled by DLP redaction).")
-
-        # List non-sensitive columns
-        # Get all columns from stats
-        all_columns = stats.get('total_columns_names', [])
-        sensitive_columns = stats.get('sensitive_fields_names', [])
-        non_sensitive_columns = [
-            col for col in all_columns if col not in sensitive_columns]
+            report.append("No sensitive fields detected by DLP.")
 
         report.append(
             "\n--- Non-Sensitive Columns (No DLP Redaction Applied) ---")
+        sensitive_set = set(stats['sensitive_fields_names'])
+        all_columns_set = set(stats['total_columns_names'])
+        non_sensitive_columns = sorted(list(all_columns_set - sensitive_set))
+
         if non_sensitive_columns:
             for column in non_sensitive_columns:
                 report.append(f"- {column}")
         else:
-            report.append(
-                "All columns were identified as sensitive or no columns were present.")
+            report.append("All columns were identified as sensitive.")
 
         report.append("\n--- Transformation Log ---")
         if stats.get('transformation_log'):
@@ -299,7 +278,7 @@ class Anonymizer:
         report.append(
             "All identified sensitive data was redacted using character masking ('*').")
         report.append(
-            f"DLP InfoTypes used: {', '.join([it['name'] for it in self.DLP_INFO_TYPES])}")
+            "DLP InfoTypes used: All of Google DLP's inbuilt sensitive information types.")
 
         report.append("\n\nEnd of Report")
         report.append("=" * 60)
@@ -321,10 +300,10 @@ if __name__ == "__main__":
 
     # Generate and display report
     report = anonymizer.generate_anonymization_report(stats)
-    print("\n" + report)
+    print(f"\n" + report)
 
     # Save report to file
-    with open("anonymization_report.txt", "w") as f:
-        f.write(report)
+    with open("anonymization_report.txt", "wb") as f:
+        f.write(report.encode("utf-8"))
 
     print(f"\n📋 Detailed report saved to: anonymization_report.txt")

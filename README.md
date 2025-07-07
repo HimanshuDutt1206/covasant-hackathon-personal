@@ -118,9 +118,10 @@ Try these prompts when chatting with your agent:
 
 ### Data Classifications (detected by Google DLP API)
 
-- **PII**: Person names, email addresses, phone numbers, street addresses, IP addresses, SSNs, passport numbers, driver's license numbers, dates of birth, age, gender, ethnic group, place of birth, national IDs, general locations, domain names, URLs.
-- **PCI**: Credit card numbers, bank account numbers (generic, US specific, IBAN, SWIFT), financial account numbers.
-- **PHI**: Medical record numbers, US healthcare IDs, healthcare provider IDs, phone numbers, email addresses, dates, diseases, drug codes, ICD-10 codes.
+- Google DLP is configured to detect **all inbuilt sensitive information types**. This includes, but is not limited to:
+  - **PII**: Person names, email addresses, phone numbers, street addresses, IP addresses, SSNs, passport numbers, driver's license numbers, dates of birth, age, gender, ethnic group, place of birth, national IDs, general locations, domain names, URLs.
+  - **PCI**: Credit card numbers, bank account numbers (generic, US specific, IBAN, SWIFT), financial account numbers.
+  - **PHI**: Medical record numbers, US healthcare IDs, healthcare provider IDs, phone numbers, email addresses, dates, diseases, drug codes, ICD-10 codes.
 
 ### Preserved Data
 
@@ -132,7 +133,7 @@ The project includes a sample healthcare dataset with 10 patient records contain
 
 ## 🔧 Configuration
 
-Privacy policies are now handled by the Google DLP API. The `anonymizer.py` file contains the list of `InfoTypes` used for detection and redaction.
+Privacy policies are now handled by the Google DLP API. The `anonymizer.py` file configures DLP to use all its inbuilt sensitive information types for detection and applies character masking for redaction.
 
 ## 🚀 Getting Started
 
