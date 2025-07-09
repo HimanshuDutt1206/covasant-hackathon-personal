@@ -1,155 +1,225 @@
-# Privacy Guardian Agent - Google ADK Integration
+# Privacy Guardian
 
-A sophisticated privacy-preserving data anonymization system built with Google Agent Development Kit (ADK).
+A privacy-focused data anonymization solution using Google Cloud DLP (Data Loss Prevention) API and Apache Beam/Dataflow for scalable data processing.
 
-## 🚀 Project Overview
+## Features
 
-The Privacy Guardian Agent is an advanced system that protects sensitive data through intelligent anonymization while preserving data utility for analysis. It implements policy-based transformations for various data types including PII, PHI, PCI, and financial information.
+- Automatic detection and anonymization of sensitive data using Google Cloud DLP
+- Support for both local anonymization and cloud-based processing with Dataflow
+- Handles various sensitive data types (PII, PHI, financial data, etc.)
+- Scalable processing for large datasets using Apache Beam
+- Detailed anonymization reports and logging
 
-## 📁 Project Structure
+## Setup Instructions
 
+### Prerequisites
+
+1. Python 3.8+ installed
+2. Google Cloud SDK installed
+3. A Google Cloud Project with:
+   - Billing enabled
+   - Required APIs enabled:
+     - Cloud Data Loss Prevention API
+     - Dataflow API
+     - Cloud Storage API
+     - BigQuery API
+
+### Initial Setup
+
+1. Clone the repository:
+
+   ```bash
+   git clone <repository-url>
+   cd project-personal
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Authenticate with Google Cloud:
+
+   ```bash
+   # Login with your Google account
+   gcloud auth login
+
+   # Set your project
+   gcloud config set project YOUR_PROJECT_ID
+
+   # Enable application-default credentials (needed for local development)
+   gcloud auth application-default login
+   ```
+
+### DLP API Setup
+
+1. Enable the DLP API:
+
+   ```bash
+   gcloud services enable dlp.googleapis.com
+   ```
+
+For local development and testing, the above setup using `gcloud auth login` and `gcloud auth application-default login` is sufficient. The code will automatically use your user credentials.
+
+For production environments or when running on GCP services, you may want to use a service account instead:
+
+1. Create a service account (optional, for production use):
+
+   ```bash
+   # Create service account
+   gcloud iam service-accounts create dlp-sa --display-name="DLP Service Account"
+
+   # Grant DLP User role
+   gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+       --member="serviceAccount:dlp-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+       --role="roles/dlp.user"
+   ```
+
+2. If using service account, create and download key (optional):
+
+   ```bash
+   gcloud iam service-accounts keys create dlp-key.json \
+       --iam-account=dlp-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+   # Set environment variable if using service account
+   export GOOGLE_APPLICATION_CREDENTIALS=path/to/dlp-key.json  # Linux/Mac
+   set GOOGLE_APPLICATION_CREDENTIALS=path/to/dlp-key.json     # Windows
+   ```
+
+### Other GCP Services Setup
+
+1. Enable remaining APIs:
+
+   ```bash
+   gcloud services enable dataflow.googleapis.com storage.googleapis.com bigquery.googleapis.com
+   ```
+
+2. Set up Cloud Storage:
+
+   ```bash
+   # Create a bucket for data
+   gsutil mb -l us-central1 gs://YOUR_BUCKET_NAME
+
+   # Upload sample data
+   gsutil cp sample_data.csv gs://YOUR_BUCKET_NAME/
+   ```
+
+3. Create BigQuery dataset:
+   ```bash
+   bq mk --dataset anonymized_sample_data
+   ```
+
+### Configuration
+
+1. Update `privacy_guardian/dataflow_config.py` with your GCP settings:
+   - PROJECT_ID
+   - BUCKET_NAME
+   - DATASET_ID
+   - Other configuration as needed
+
+## Usage
+
+The project supports two modes of operation:
+
+### 1. Local Anonymization with DLP
+
+This mode uses the DLP API to anonymize data locally and save it to a new file:
+
+```python
+from privacy_guardian.anonymizer import Anonymizer
+
+# Initialize anonymizer
+anonymizer = Anonymizer()
+
+# Anonymize data
+result = anonymizer.anonymize_dataset(
+    input_file="sample_data.csv",
+    output_file="anonymized_data.csv"
+)
+
+# Check what was detected and anonymized
+print(f"Sensitive fields detected: {result['sensitive_fields_detected']}")
+print(f"Fields anonymized: {result['sensitive_fields_names']}")
 ```
-project/
-├── multi_tool_agent/           # Google ADK Agent
-│   ├── __init__.py            # Package initialization
-│   ├── agent.py               # Main agent implementation
-│   └── .env                   # Environment configuration
-├── anonymizer.py              # Core anonymization logic
-├── sample_data.csv            # Test dataset
-├── anonymized_data.csv        # Anonymized output
-└── anonymization_report.txt   # Processing report
-```
 
-## 🛠️ Setup Instructions
+The DLP API will automatically:
 
-GOOGLE_GENAI_USE_VERTEXAI=FALSE
-GOOGLE_API_KEY=your-api-key
-in .env in multi_tool_agent
+- Detect 50+ types of sensitive data including:
+  - Personal identifiers (names, emails, phone numbers, DOB)
+  - Financial data (credit cards, bank accounts)
+  - Healthcare data (medical records, diagnoses)
+  - Government IDs (passports, licenses)
+- Apply appropriate anonymization based on data type
+- Track what was changed and why
 
-### 1. Install Google ADK
+### 2. Cloud Dataflow Processing (Large-Scale)
 
-First, install the Google Agent Development Kit:
+This mode processes data using Cloud Dataflow for scalable anonymization:
 
 ```bash
-pip install google-adk
+python run_dataflow_job.py
 ```
 
-### 2. Get Google API Key
+The Dataflow job will:
 
-1. Go to [Google AI Studio](https://aistudio.google.com/)
-2. Create a project and get your API key
-   GOOGLE_GENAI_USE_VERTEXAI=FALSE
-   GOOGLE_API_KEY=your-api-key
-   in .env in multi_tool_agent
+1. Read data from Cloud Storage
+2. Process it through DLP API
+3. Write results to BigQuery
 
-### 3. Install Dependencies
+**Note:** The agent integration for automated pipeline management is currently under development. For now, use `run_dataflow_job.py` to manually trigger Dataflow jobs.
 
-Make sure you have the required Python packages:
+## Sample Data Generation
+
+You can generate sample test data using:
 
 ```bash
-pip install pandas google-cloud-dlp
+python generate_sample_data.py
 ```
 
-$env:GOOGLE_CLOUD_PROJECT = "your-project-id"
-In the terminal at the start. If terminal is refreshed, run again.
+## Project Structure
 
-## 🎯 Agent Capabilities
+- `privacy_guardian/` - Main package with DLP and Dataflow implementation
+- `run_dataflow_job.py` - Script to run the Dataflow pipeline
+- `generate_sample_data.py` - Generate sample test data
+- `setup.py` - Package setup for Dataflow
+- `requirements.txt` - Project dependencies
 
-The Privacy Guardian Agent provides 3 main tools:
+## Security Notes
 
-### 1. `anonymize_csv_data(input_file, output_file=None)`
+1. Never commit sensitive data or credentials
+2. Use service account keys with minimum required permissions
+3. Store credentials securely (use environment variables or secret management)
+4. Monitor DLP and Dataflow costs
+5. DLP API Best Practices:
+   - Use minimum required permissions for service accounts
+   - Regularly rotate service account keys
+   - Monitor DLP findings in Cloud Audit Logs
+   - Set up alerts for unusual DLP activity
+   - Use VPC Service Controls if needed
 
-- Anonymizes sensitive data in CSV files using Google DLP API.
-- Applies redaction (character masking) to all identified sensitive data.
-- Returns processing statistics and transformation log.
+## Troubleshooting
 
-### 2. `generate_anonymization_report(input_file, output_file=None, report_file=None)`
+1. If Dataflow job fails:
 
-- Creates detailed anonymization reports based on DLP processing.
-- Shows transformation statistics and documents DLP usage.
+   - Check Cloud Console for job logs
+   - Verify all APIs are enabled
+   - Ensure service account has necessary permissions
 
-### 3. `process_sample_data()`
+2. If DLP API fails:
+   - Verify project has billing enabled
+   - Check API quotas and limits
+   - Ensure data format matches expected schema
+   - Verify GOOGLE_APPLICATION_CREDENTIALS is set correctly
+   - Check service account permissions
+   - Look for errors in Cloud Audit Logs
 
-- Processes the included sample dataset with Google DLP.
-- Demonstrates full anonymization workflow.
-- Creates both anonymized data and report.
+## Contributing
 
-### 4. `get_data_preview(file_path, rows=5)`
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
 
-- Safely previews CSV file contents with sensitive data redacted by DLP.
-- Shows data structure and column names.
-- Limits output for privacy protection.
+## License
 
-## 🏃‍♂️ Running the Agent
-
-### Option 1: Terminal Interface (Recommended)
-
-```bash
-adk run multi_tool_agent
-```
-
-### Option 2: Web UI
-
-```bash
-adk web multi_tool_agent
-```
-
-### Option 3: API Server
-
-```bash
-adk api_server multi_tool_agent
-```
-
-## 💬 Example Prompts
-
-Try these prompts when chatting with your agent:
-
-- "Process the sample data and show me the results"
-- "Anonymize my data file called 'customer_data.csv'"
-- "Generate a report for the processed data"
-- "Show me a preview of the anonymized data"
-- "Explain how sensitive data is protected"
-
-## 🔒 Privacy Features
-
-### Anonymization Techniques (using Google DLP API)
-
-- **Redaction (Character Masking)**: All identified sensitive data is replaced with asterisks (`*`).
-
-### Data Classifications (detected by Google DLP API)
-
-- Google DLP is configured to detect **all inbuilt sensitive information types**. This includes, but is not limited to:
-  - **PII**: Person names, email addresses, phone numbers, street addresses, IP addresses, SSNs, passport numbers, driver's license numbers, dates of birth, age, gender, ethnic group, place of birth, national IDs, general locations, domain names, URLs.
-  - **PCI**: Credit card numbers, bank account numbers (generic, US specific, IBAN, SWIFT), financial account numbers.
-  - **PHI**: Medical record numbers, US healthcare IDs, healthcare provider IDs, phone numbers, email addresses, dates, diseases, drug codes, ICD-10 codes.
-
-### Preserved Data
-
-- Data not identified as sensitive by Google DLP will be preserved.
-
-## 📊 Sample Data
-
-The project includes a sample healthcare dataset with 10 patient records containing sensitive information that will be anonymized by Google DLP.
-
-## 🔧 Configuration
-
-Privacy policies are now handled by the Google DLP API. The `anonymizer.py` file configures DLP to use all its inbuilt sensitive information types for detection and applies character masking for redaction.
-
-## 🚀 Getting Started
-
-1. **Setup**: Follow the setup instructions above (including setting your Google Cloud Project ID in environment variables)
-2. **Test**: Run the agent with `adk run multi_tool_agent`
-3. **Demo**: Try "Process the sample data and show me the results"
-4. **Explore**: Use the example prompts to explore all features
-
-## 🎉 Next Steps
-
-Once your agent is running, you can:
-
-- Process your own CSV files with sensitive data.
-- Integrate with your data pipeline to automate anonymization.
-- Scale for enterprise use leveraging Google Cloud's infrastructure.
-
----
-
-**Privacy Guardian Agent** - Protecting sensitive data while preserving analytical value.
+[Your License Here]

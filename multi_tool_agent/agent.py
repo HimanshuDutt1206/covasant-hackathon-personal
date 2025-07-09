@@ -5,6 +5,8 @@ import sys
 import pandas as pd
 from typing import Dict, Any, Optional
 from pathlib import Path
+import subprocess
+import logging
 
 # Add parent directory to path to import our modules
 sys.path.append(str(Path(__file__).parent.parent))
@@ -183,6 +185,155 @@ def get_data_preview(file_path: str, rows: int = 5) -> dict:
         }
 
 
+def process_large_dataset_with_dataflow(
+    input_gcs_path: Optional[str] = None,
+    output_table: Optional[str] = None,
+    batch_size: int = 5,
+    runner: str = "DataflowRunner"
+) -> dict:
+    """Process large datasets using Cloud Dataflow for scalable anonymization.
+
+    Args:
+        input_gcs_path (str, optional): GCS path to input CSV file. Defaults to configured path.
+        output_table (str, optional): BigQuery table for output. Defaults to configured table.
+        batch_size (int): Number of rows per batch (default: 5).
+        runner (str): Pipeline runner - 'DataflowRunner' for cloud, 'DirectRunner' for local testing.
+
+    Returns:
+        dict: Status and job information
+    """
+    try:
+        # Import here to avoid issues if dataflow modules aren't available
+        from dataflow_config import INPUT_FILE_PATH, BIGQUERY_TABLE
+
+        # Use defaults if not provided
+        if input_gcs_path is None:
+            input_gcs_path = INPUT_FILE_PATH
+        if output_table is None:
+            output_table = BIGQUERY_TABLE
+
+        # Validate inputs
+        if not input_gcs_path.startswith('gs://'):
+            return {
+                "status": "error",
+                "error_message": "Input path must be a GCS path (gs://bucket/file)"
+            }
+
+        # Build command to run the Dataflow pipeline
+        pipeline_script = os.path.join(
+            Path(__file__).parent.parent, "dataflow_pipeline.py")
+
+        cmd = [
+            "python", pipeline_script,
+            f"--input_file={input_gcs_path}",
+            f"--output_table={output_table}",
+            f"--batch_size={batch_size}",
+            f"--runner={runner}"
+        ]
+
+        logging.info(
+            f"Launching Dataflow pipeline with command: {' '.join(cmd)}")
+
+        # Launch the pipeline
+        if runner == "DirectRunner":
+            # For local testing, run synchronously
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode == 0:
+                return {
+                    "status": "success",
+                    "message": "Local pipeline completed successfully",
+                    "runner": runner,
+                    "input_path": input_gcs_path,
+                    "output_table": output_table,
+                    "batch_size": batch_size,
+                    "output": result.stdout
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error_message": f"Pipeline failed: {result.stderr}",
+                    "output": result.stdout
+                }
+        else:
+            # For Dataflow, launch asynchronously
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+            return {
+                "status": "success",
+                "message": "Dataflow pipeline launched successfully. Check Google Cloud Console for job status.",
+                "runner": runner,
+                "input_path": input_gcs_path,
+                "output_table": output_table,
+                "batch_size": batch_size,
+                "process_id": process.pid,
+                "note": "Pipeline is running asynchronously. Use Google Cloud Console to monitor progress."
+            }
+
+    except ImportError as e:
+        return {
+            "status": "error",
+            "error_message": f"Dataflow dependencies not available: {str(e)}. Please install apache-beam[gcp]"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Dataflow job failed: {str(e)}"
+        }
+
+
+def check_dataflow_job_status(job_name: Optional[str] = None) -> dict:
+    """Check the status of a Dataflow job.
+
+    Args:
+        job_name (str, optional): Name of the Dataflow job to check.
+
+    Returns:
+        dict: Job status information
+    """
+    try:
+        from dataflow_config import PROJECT_ID, REGION
+
+        if job_name is None:
+            # List recent jobs
+            cmd = [
+                "gcloud", "dataflow", "jobs", "list",
+                f"--project={PROJECT_ID}",
+                f"--region={REGION}",
+                "--limit=5",
+                "--format=json"
+            ]
+        else:
+            # Get specific job status
+            cmd = [
+                "gcloud", "dataflow", "jobs", "describe", job_name,
+                f"--project={PROJECT_ID}",
+                f"--region={REGION}",
+                "--format=json"
+            ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            return {
+                "status": "success",
+                "message": "Job status retrieved successfully",
+                "job_info": result.stdout
+            }
+        else:
+            return {
+                "status": "error",
+                "error_message": f"Failed to get job status: {result.stderr}"
+            }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Error checking job status: {str(e)}"
+        }
+
+
 class PrivacyGuardianAgent(Agent):
     def __init__(self):
         super().__init__(
@@ -190,18 +341,22 @@ class PrivacyGuardianAgent(Agent):
             model="gemini-2.0-flash",  # You can choose a different model if needed
             description=(
                 "Privacy Guardian Agent - An advanced data anonymization and privacy protection system "
-                "that uses Google Cloud Data Loss Prevention (DLP) API to identify and redact sensitive information."
+                "that uses Google Cloud Data Loss Prevention (DLP) API to identify and redact sensitive information. "
+                "Now includes Cloud Dataflow integration for processing large datasets at scale."
             ),
             instruction=(
                 "You are the Privacy Guardian Agent, an expert in data privacy and anonymization. "
                 "You help users protect sensitive information by applying Google Cloud DLP for redaction. "
-                "You can process CSV files, generate detailed reports, and provide safe data previews."
+                "You can process CSV files locally, generate detailed reports, provide safe data previews, "
+                "and process large datasets using Cloud Dataflow for scalable anonymization."
             ),
             tools=[
                 anonymize_csv_data,
                 generate_anonymization_report,
                 process_sample_data,
-                get_data_preview
+                get_data_preview,
+                process_large_dataset_with_dataflow,
+                check_dataflow_job_status
             ]
         )
 

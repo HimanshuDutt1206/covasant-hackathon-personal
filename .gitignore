@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+#mcp
+.gcp-mcp/
+
 # Distribution / packaging
 .Python
 build/
@@ -272,4 +275,38 @@ Icon
 .AppleDesktop
 Network Trash Folder
 Temporary Items
-.apdisk 
+.apdisk
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Project specific
+anonymized_*.csv
+*_report.txt
+.env
+credentials.json
+*.key.json
+token.json
+
+# GCP
+.gcp/
+.gsutil/
+
+# Logs
+*.log
+logs/
+dataflow_logs/
+
+# Temporary files
+*.tmp
+.DS_Store
+Thumbs.db 

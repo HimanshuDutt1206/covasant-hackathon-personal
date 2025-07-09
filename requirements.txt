@@ -1,0 +1,15 @@
+# Core dependencies
+pandas>=1.3.0
+google-cloud-dlp>=3.0.0
+google-adk>=0.1.0
+
+# Dataflow dependencies
+apache-beam[gcp]>=2.40.0
+google-cloud-bigquery>=3.0.0
+google-cloud-storage>=2.0.0
+
+# Data generation (for sample data)
+Faker>=15.0.0
+
+# Additional utilities
+python-dateutil>=2.8.0 
