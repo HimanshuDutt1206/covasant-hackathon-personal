@@ -52,6 +52,12 @@ A privacy-focused data anonymization solution using Google Cloud DLP (Data Loss 
    gcloud auth application-default login
    ```
 
+4. Get an API key from Google AI Studio.
+   When using Python, open the .env file located inside (multi_tool_agent/) and copy-paste the following code.
+   
+   GOOGLE_GENAI_USE_VERTEXAI=FALSE
+   GOOGLE_API_KEY=PASTE_YOUR_ACTUAL_API_KEY_HERE
+
 ### DLP API Setup
 
 1. Enable the DLP API:
